@@ -1,0 +1,32 @@
+{
+  "name": "nutrilens",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "NutriLens — scan a nutrition label, see what it does to your body long-term.",
+  "scripts": {
+    "prestart": "node scripts/ensure-deps.js",
+    "start": "node server/index.js",
+    "dev:server": "node --watch server/index.js",
+    "dev:client": "npm --prefix client run dev",
+    "dev": "concurrently -n api,web -c green,cyan \"npm run dev:server\" \"npm run dev:client\"",
+    "build": "npm --prefix client install --no-audit --no-fund && npm --prefix client run build",
+    "setup": "npm install --no-audit --no-fund && npm run build",
+    "seed": "node server/seed.js --force",
+    "doctor": "node scripts/doctor.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "express": "^4.21.1",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "optionalDependencies": {
+    "better-sqlite3": "^12.11.1"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

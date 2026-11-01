@@ -1,0 +1,105 @@
+NUTRILENS — START HERE (Windows)
+================================
+
+You need Node.js installed. Check by opening Command Prompt and typing:
+
+    node -v
+
+If you see something like v22.x or v24.x, you are ready (v18+ works, v22.5+ is easiest).
+If it says "node is not recognized", install the LTS version from https://nodejs.org
+and then CLOSE and REOPEN Command Prompt.
+
+
+STEP 1 — Unzip somewhere simple
+-------------------------------
+Right-click nutrilens-project.zip -> Extract All -> extract to your Downloads folder.
+You now have a folder called "nutrilens" that contains package.json, server, client,
+run.bat and this file.
+
+IMPORTANT: delete any older nutrilens-project folders first so you do not run an old
+copy. If a folder is named "nutrilens-project (2)", that is an old one.
+
+
+STEP 2 — Two ways to start. Pick ONE.
+-----------------------------------
+
+A) EASIEST: double-click  run.bat
+   - A black window opens, installs what it needs (first run takes a minute),
+     starts the server and opens your browser automatically when it is ready.
+   - Keep that black window open while you use the app.
+   - Close it (or press Ctrl+C in it) to stop the app.
+
+B) MANUAL: open Command Prompt in the folder and run two commands:
+   - Click the address bar of the File Explorer window showing the nutrilens folder,
+     type  cmd  and press Enter. A Command Prompt opens already in that folder.
+   - Then type:
+
+         npm start
+
+   - The first run installs dependencies by itself, then you should see:
+
+         NutriLens listening on http://0.0.0.0:4000  (sqlite driver: ...)
+         Demo data ready — 16 seeded scans.
+
+   - Now open http://localhost:4000 in your browser.
+
+   The server runs in that window. If you close the window, the website stops
+   working ("localhost refused to connect"). That is normal — just run npm start again.
+
+
+STEP 3 — Sign in
+----------------
+    Email:    demo@nutrilens.app
+    Password: demo1234
+
+That account is the workspace admin: it has a pantry, 16 scans and a week of food logs.
+There is a second account, meera@nutrilens.app / demo1234, which is a normal member
+with an unconfirmed email (it shows the "confirm your email" banner).
+
+
+WHAT TO LOOK AT FIRST
+---------------------
+  Dashboard      today's sugar / sodium budget, risk trend, recent scans
+  Scan a label   "Scan with camera" (photo or upload), "Smart paste", or type values
+  My pantry      add / edit / delete your own foods
+  Daily log      log what you ate, see weekly totals
+  Admin          (demo account only) accounts, roles, email confirmation
+  Health profile conditions, allergies, password, email verification
+
+
+IF SOMETHING GOES WRONG
+-----------------------
+Run the built-in health check in the same Command Prompt:
+
+    npm run doctor
+
+It tells you exactly what is missing (dependencies, build output, the port) and the
+command that fixes it.
+
+"localhost refused to connect"
+    The server is not running. Start it again (run.bat or npm start) and wait for the
+    "NutriLens listening..." line BEFORE opening the browser.
+
+"EADDRINUSE" / port 4000 already in use
+    Something else has the port. Use another one:
+        set PORT=4001 && npm start
+    then open http://localhost:4001
+
+"npm error code 1 ... better-sqlite3 / node-gyp / Visual Studio"
+    Only happens with an old copy. This build uses Node's built-in SQLite, and the
+    native module is optional, so npm install cannot fail on a missing C++ compiler.
+    If you still see it, you are in an old folder — use the newest extraction.
+
+"ExperimentalWarning: SQLite is an experimental feature"
+    Harmless. It is Node announcing its own built-in module. The app works normally.
+
+
+NOTES
+-----
+- Your data lives in  data\nutrilens.db  and survives restarts.
+  Delete that folder to start fresh (it re-seeds automatically).
+- There is no mail server, so confirmation and password-reset emails appear in the
+  "Dev mailbox" panel on the sign-in screen (and in the console). The links are real
+  and single-use.
+- Reset everything to the demo state at any time:  npm run seed
+- NutriLens is an educational tool, not a medical device or a diagnosis.
