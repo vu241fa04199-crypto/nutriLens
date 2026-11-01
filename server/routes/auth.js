@@ -2,10 +2,18 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
 import { db, nowISO, J, rowToUser } from '../db.js';
-import { signToken, requireAuth, publicUser } from '../auth.js';
+import { signToken, requireAuth, requireAdmin, publicUser } from '../auth.js';
+import { rateLimit } from '../ratelimit.js';
 import {
-  DEV_MAILBOX, appUrl, issueToken, consumeToken, sendMail, outbox, clearOutbox,
+  DEV_MAILBOX, DEV_MAILBOX_ADMIN_ONLY, appUrl, issueToken, consumeToken, sendMail, outbox, clearOutbox,
 } from '../mailer.js';
+
+/** Mailbox is open in development, admin-only when forced on in production. */
+const allowMailbox = (req, res, next) => {
+  if (!DEV_MAILBOX) return res.status(404).json({ error: 'Endpoint not found.' });
+  if (!DEV_MAILBOX_ADMIN_ONLY) return next();
+  return requireAdmin(req, res, next);
+};
 
 const router = express.Router();
 
@@ -36,7 +44,9 @@ async function sendVerification(row) {
 }
 
 // --- register / login -------------------------------------------------------
-router.post('/register', async (req, res) => {
+const loginLimiter = rateLimit({ windowMs: 10 * 60_000, max: 15 });
+
+router.post('/register', loginLimiter, async (req, res) => {
   const { name, email, password } = sanitize(req.body);
   if (!name || name.length < 2) return res.status(400).json({ error: 'Please enter your name.' });
   if (!isEmail(email)) return res.status(400).json({ error: 'That email address looks invalid.' });
@@ -45,16 +55,19 @@ router.post('/register', async (req, res) => {
   if (findByEmail(email)) return res.status(409).json({ error: 'An account with that email already exists.' });
 
   const conditions = Array.isArray(req.body.conditions) ? req.body.conditions : [];
+  // The very first account on a fresh deployment becomes the workspace admin.
+  const admins = db.prepare("SELECT COUNT(*) c FROM users WHERE role = 'admin'").get().c;
+  const role = admins === 0 ? 'admin' : 'user';
   const info = db
     .prepare(
       `INSERT INTO users (name, email, password_hash, age, sex, height_cm, weight_kg, activity, conditions, allergies, role, email_verified, provider, created_at, last_login_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', 'user', 0, 'password', ?, ?)`
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, 0, 'password', ?, ?)`
     )
     .run(
       name, email, bcrypt.hashSync(password, 10),
       req.body.age || null, req.body.sex || null,
       req.body.heightCm || null, req.body.weightKg || null,
-      req.body.activity || 'moderate', J.stringify(conditions), nowISO(), nowISO()
+      req.body.activity || 'moderate', J.stringify(conditions), role, nowISO(), nowISO()
     );
 
   const row = findById(info.lastInsertRowid);
@@ -69,7 +82,7 @@ router.post('/register', async (req, res) => {
   res.status(201).json({ token: signToken(user), user, verification });
 });
 
-router.post('/login', (req, res) => {
+router.post('/login', loginLimiter, (req, res) => {
   const { email, password } = sanitize(req.body);
   const row = findByEmail(email);
   if (!row || !bcrypt.compareSync(password, row.password_hash)) {
@@ -139,7 +152,7 @@ router.post('/resend-verification', requireAuth, async (req, res) => {
 });
 
 // --- password reset ----------------------------------------------------------
-router.post('/forgot-password', async (req, res) => {
+router.post('/forgot-password', rateLimit({ windowMs: 15 * 60_000, max: 8 }), async (req, res) => {
   const email = String(req.body?.email || '').trim().toLowerCase();
   if (!isEmail(email)) return res.status(400).json({ error: 'That email address looks invalid.' });
 
@@ -160,7 +173,7 @@ router.post('/forgot-password', async (req, res) => {
   res.json({ ok: true, message });
 });
 
-router.post('/reset-password', (req, res) => {
+router.post('/reset-password', rateLimit({ windowMs: 15 * 60_000, max: 15 }), (req, res) => {
   const token = String(req.body?.token || '');
   const password = String(req.body?.password || '');
   if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters.' });
@@ -178,12 +191,17 @@ router.post('/reset-password', (req, res) => {
 
 // --- dev mailbox -------------------------------------------------------------
 router.get('/dev-mailbox', (req, res) => {
-  if (!DEV_MAILBOX) return res.status(404).json({ error: 'Endpoint not found.' });
-  res.json({ enabled: true, messages: outbox(20), transport: process.env.MAIL_WEBHOOK_URL ? 'webhook+dev' : 'dev' });
+  const payload = () => ({
+    enabled: true,
+    messages: outbox(20),
+    transport: process.env.MAIL_WEBHOOK_URL ? 'webhook+dev' : 'dev',
+  });
+  if (!DEV_MAILBOX) return res.json({ enabled: false, messages: [], transport: 'disabled' });
+  if (!DEV_MAILBOX_ADMIN_ONLY) return res.json(payload());
+  return requireAdmin(req, res, () => res.json(payload()));
 });
 
-router.delete('/dev-mailbox', (req, res) => {
-  if (!DEV_MAILBOX) return res.status(404).json({ error: 'Endpoint not found.' });
+router.delete('/dev-mailbox', allowMailbox, (req, res) => {
   clearOutbox();
   res.json({ ok: true });
 });

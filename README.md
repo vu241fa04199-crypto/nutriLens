@@ -164,6 +164,22 @@ data/nutrilens.db          SQLite database (created + seeded on first boot)
 | Fibre | 30 g (minimum) |
 | Single-snack energy | 500 kcal |
 
+## Deploying
+
+`DEPLOY.md` has the full guide (Render, Railway, Fly.io, or your own VPS with nginx + systemd), the environment
+variables that matter, and a post-deploy checklist. The short version: this is **one Node process** serving the
+API and the built SPA, with a **SQLite file** for storage — so it needs a host with a persistent disk
+(Render Starter, Railway volume, Fly.io volume, or a VPS). Vercel/Netlify alone won't work.
+
+Two safety switches exist for public deployments:
+
+| Variable | Effect |
+| --- | --- |
+| `SEED_DEMO=off` | Skips the demo accounts; the **first account you register becomes admin** |
+| `DEV_MAILBOX` | Unset in production = the in-app mailbox is disabled (it would otherwise expose reset links). `on` = kept but **admin-only** |
+
+Also set `JWT_SECRET` and `PUBLIC_URL`, and remember camera scanning needs HTTPS.
+
 ## Email, reset links and OAuth
 
 There is no mail server in this build, so every outgoing message is captured instead of delivered:

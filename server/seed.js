@@ -225,7 +225,8 @@ export function ensureDemoRoles() {
     if (first) db.prepare("UPDATE users SET role = 'admin', email_verified = 1 WHERE id = ?").run(first.id);
   }
 
-  if (!db.prepare('SELECT id FROM users WHERE email = ?').get(TEAMMATE_USER.email)) {
+  const demoEnabled = String(process.env.SEED_DEMO ?? 'on').toLowerCase() !== 'off';
+  if (demoEnabled && !db.prepare('SELECT id FROM users WHERE email = ?').get(TEAMMATE_USER.email)) {
     db.prepare(
       `INSERT INTO users (name, email, password_hash, age, sex, height_cm, weight_kg, activity, conditions, allergies, role, email_verified, provider, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'user', ?, 'password', ?)`
@@ -240,9 +241,14 @@ export function ensureDemoRoles() {
 }
 
 export function seedIfEmpty() {
-  seedCatalogue();
-  const id = seedDemoUser();
+  seedCatalogue(); // the shared food catalogue / swaps are not demo data — always seed
+  const demoEnabled = String(process.env.SEED_DEMO ?? 'on').toLowerCase() !== 'off';
+  const id = demoEnabled ? seedDemoUser() : null;
   ensureDemoRoles();
+  if (!demoEnabled) {
+    const users = db.prepare('SELECT COUNT(*) c FROM users').get().c;
+    console.log(`SEED_DEMO=off — no demo accounts created (${users} real account(s); the first one becomes admin).`);
+  }
   return id;
 }
 

@@ -29,14 +29,24 @@ export default function DevMailbox({ defaultOpen = false, className }: { default
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState<MailMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [disabled, setDisabled] = useState(false);
 
   const load = async () => {
     setLoading(true);
     setError(null);
     try {
       const res = await api.auth.mailbox();
+      if (!res.enabled) {
+        setDisabled(true);
+        return;
+      }
       setMessages(res.messages);
     } catch (err: any) {
+      // Production builds have the mailbox switched off (404) — stay invisible.
+      if (err?.status === 404) {
+        setDisabled(true);
+        return;
+      }
       setError(err?.message || 'Mailbox unavailable.');
     } finally {
       setLoading(false);
@@ -62,6 +72,8 @@ export default function DevMailbox({ defaultOpen = false, className }: { default
       /* ignore */
     }
   };
+
+  if (disabled) return null;
 
   return (
     <div className={cn('rounded-2xl border border-ink-200 bg-white/90 shadow-sm', className)}>

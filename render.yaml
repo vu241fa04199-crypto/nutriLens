@@ -1,0 +1,37 @@
+# Render blueprint — https://render.com/docs/blueprint-spec
+# Push this repo, then in Render: New + → Blueprint → pick the repo → Apply.
+#
+# Default = FREE tier: no disk, so the SQLite file lives inside the app folder and
+# is reset whenever Render rebuilds/redeploys the service. Perfect for a demo.
+#
+# Want the data to survive deploys (and a public signup site)? Upgrade the service
+# to the Starter plan, then:
+#   1. add this block under `service:`
+#          disk:
+#            name: nutrilens-data
+#            mountPath: /var/data
+#            sizeGB: 1
+#   2. add an env var  DATA_DIR = /var/data
+#   3. commit + push, and Render will mount the volume on the next deploy.
+services:
+  - type: web
+    name: nutrilens
+    runtime: node
+    plan: free
+    buildCommand: npm install --no-audit --no-fund && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: SEED_DEMO
+        value: "off"          # no demo@nutrilens.app on a public site; first signup becomes admin
+      - key: JWT_SECRET
+        generateValue: true   # stable for the life of the service
+      - key: PUBLIC_URL
+        sync: false           # set to https://<your-service>.onrender.com after the first deploy
+      - key: MAIL_WEBHOOK_URL
+        sync: false           # optional: real email delivery (Resend/Zapier/Lambda)

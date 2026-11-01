@@ -13,7 +13,19 @@ import { db, nowISO } from './db.js';
  * accepts `{ to, subject, text, html }` (Resend, Zapier, a Lambda, …) and the
  * same payload is POSTed there too, so the flow works unchanged in production.
  */
-export const DEV_MAILBOX = String(process.env.DEV_MAILBOX || 'on').toLowerCase() !== 'off';
+const MAILBOX_FLAG = String(process.env.DEV_MAILBOX ?? '').toLowerCase();
+const IS_PROD = process.env.NODE_ENV === 'production';
+
+/**
+ * 'on'  → always available
+ * 'off' → never available
+ * unset → on in development, OFF in production (a public mailbox would hand out
+ *         password-reset links to anyone who can reach the site).
+ */
+export const DEV_MAILBOX = MAILBOX_FLAG === 'on' ? true : MAILBOX_FLAG === 'off' ? false : !IS_PROD;
+
+/** In production the mailbox stays admin-only even when explicitly enabled. */
+export const DEV_MAILBOX_ADMIN_ONLY = IS_PROD;
 
 export const appUrl = () =>
   (process.env.PUBLIC_URL || `http://localhost:${process.env.PORT || 4000}`).replace(/\/+$/, '');

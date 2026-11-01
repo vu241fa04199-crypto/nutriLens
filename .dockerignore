@@ -1,0 +1,12 @@
+node_modules
+client/node_modules
+data
+.git
+.gitignore
+*.log
+*.zip
+.pwtest
+START-HERE.txt
+run.bat
+run.sh
+README.md

@@ -32,15 +32,26 @@ export function parseLabelText(raw = '') {
 
   // serving size
   let servingG = null;
-  const serveMatch = text.match(/serv(?:ing)?\s*size\s*[:\-–]?\s*(\d+(?:[.,]\d+)?)\s*(g|ml)/i);
+  const serveMatch = text.match(/serv(?:e|ing)?\s*size\s*[:\-–]?\s*(\d+(?:[.,]\d+)?)\s*(g|ml)/i);
   if (serveMatch) servingG = toNumber(serveMatch[1]);
   const perServingOnly = /per\s*serv(?:e|ing)/i.test(text) && !/per\s*100\s*(g|ml)/i.test(text);
 
   for (const m of text.matchAll(NUM_UNIT)) {
-    const label = m[1].trim().toLowerCase();
+    // Column headers ("%RDA per serve", "per 100 g", "Nutrients") sit directly above
+    // the first data row on most Indian labels, so they get glued onto that row's
+    // label by the regex — strip them before deciding what the row means.
+    const label = m[1]
+      .trim()
+      .toLowerCase()
+      .replace(/%?\s*rda\s*(per\s*serve?r?[a-z]*)?/g, ' ')
+      .replace(/per\s*100\s*(g|ml|gram)?/g, ' ')
+      .replace(/%\s*/g, ' ')
+      .replace(/\bnutrients?\b/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
     const value = toNumber(m[2]);
     const unit = m[3].toLowerCase();
-    if (/(serving|serv\b|size|each|pack|per\b)/.test(label)) continue;
+    if (!label || /(serving|serv\b|size|each|pack|piece|tub|bottle)/.test(label)) continue;
     const field = FIELD_MATCHERS.find(([, re]) => re.test(label));
     if (!field) continue;
     const key = field[0];

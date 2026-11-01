@@ -18,7 +18,20 @@ const app = express();
 const PORT = Number(process.env.PORT) || 4000;
 
 app.disable('x-powered-by');
+app.set('trust proxy', 1); // correct client IPs behind Render/Railway/Fly/nginx
 app.use(express.json({ limit: '1mb' }));
+
+// a few headers that matter once this is on the internet
+app.use((req, res, next) => {
+  res.set('X-Content-Type-Options', 'nosniff');
+  res.set('X-Frame-Options', 'SAMEORIGIN');
+  res.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.set('Permissions-Policy', 'camera=(self), microphone=(), geolocation=()');
+  if (process.env.NODE_ENV === 'production') {
+    res.set('Strict-Transport-Security', 'max-age=15552000; includeSubDomains');
+  }
+  next();
+});
 
 // --- API -------------------------------------------------------------------
 app.use('/api', (req, res, next) => {
@@ -74,12 +87,51 @@ app.use((err, req, res, next) => {
 
 seedIfEmpty();
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`NutriLens listening on http://0.0.0.0:${PORT}  (sqlite driver: ${dbDriver})`);
+const server = app.listen(PORT, '0.0.0.0', () => {
+  const prod = process.env.NODE_ENV === 'production';
+  console.log(`NutriLens listening on http://0.0.0.0:${PORT}  (sqlite driver: ${dbDriver}${prod ? ', production' : ''})`);
+  if (prod) {
+    if (!process.env.JWT_SECRET) {
+      console.warn('⚠  JWT_SECRET is not set — sessions will break whenever the filesystem is reset. Set it.');
+    }
+    if (!process.env.PUBLIC_URL) {
+      console.warn('⚠  PUBLIC_URL is not set — email links will point at localhost. Set it to your https URL.');
+    }
+    if (process.env.DEV_MAILBOX === 'on') {
+      console.warn('⚠  DEV_MAILBOX=on in production: the mailbox is admin-only, but consider turning it off.');
+    }
+  }
   try {
     const c = db.prepare('SELECT COUNT(*) c FROM scans').get().c;
-    console.log(`Demo data ready — ${c} seeded scans. Sign in with demo@nutrilens.app / demo1234`);
+    const users = db.prepare('SELECT COUNT(*) c FROM users').get().c;
+    if (String(process.env.SEED_DEMO ?? 'on').toLowerCase() === 'off') {
+      console.log(`Fresh workspace — ${users} account(s), ${c} scans. Register the first account to become admin.`);
+    } else {
+      console.log(`Demo data ready — ${c} seeded scans. Sign in with demo@nutrilens.app / demo1234`);
+    }
   } catch {
     /* ignore */
   }
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(
+      [
+        '',
+        `  Port ${PORT} is already in use.`,
+        '',
+        `  • If NutriLens is already running, just open http://localhost:${PORT} — no need to start it twice.`,
+        `  • To stop the old copy (Windows):`,
+        `        netstat -ano | findstr :${PORT}`,
+        `        taskkill /PID <the last number> /F`,
+        `  • Or start this copy on another port:`,
+        `        set PORT=${PORT + 1} && npm start        (then open http://localhost:${PORT + 1})`,
+        `        PORT=${PORT + 1} npm start              (macOS / Linux)`,
+        '',
+      ].join('\n')
+    );
+    process.exit(1);
+  }
+  throw err;
 });
